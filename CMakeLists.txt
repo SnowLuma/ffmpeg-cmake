@@ -89,16 +89,15 @@ message(STATUS "FFmpeg component selection:\n${generation_output}")
 include("${FF_GENERATED}/sources.cmake")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FF_METADATA_INPUTS} "${PROJECT_SOURCE_DIR}/tools/configure.py")
 if(HAVE_X86ASM AND FFMPEG_SWSCALE)
-  set(preprocess_style "")
+  set(preprocess_flags -E -P -x c)
   if(MSVC)
-    set(preprocess_style --msvc)
+    set(preprocess_flags /nologo /EP /TC)
   endif()
   set(uops_asm "${FF_GENERATED}/libswscale/x86/uops_macros.gen.asm")
   add_custom_command(OUTPUT "${uops_asm}"
-    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/preprocess.py"
-      --compiler "${CMAKE_C_COMPILER}" ${preprocess_style}
-      --input "${FFMPEG_SOURCE_DIR}/libswscale/x86/uops_macros.asm.h" --output "${uops_asm}"
-    DEPENDS "${FFMPEG_SOURCE_DIR}/libswscale/x86/uops_macros.asm.h" "${FFMPEG_SOURCE_DIR}/libswscale/uops_macros.h" "${PROJECT_SOURCE_DIR}/tools/preprocess.py"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/capture.py" --output "${uops_asm}" --
+      "${CMAKE_C_COMPILER}" ${preprocess_flags} "${FFMPEG_SOURCE_DIR}/libswscale/x86/uops_macros.asm.h"
+    DEPENDS "${FFMPEG_SOURCE_DIR}/libswscale/x86/uops_macros.asm.h" "${FFMPEG_SOURCE_DIR}/libswscale/uops_macros.h" "${PROJECT_SOURCE_DIR}/tools/capture.py"
     VERBATIM)
   add_custom_target(ffmpeg_uops DEPENDS "${uops_asm}")
 endif()
@@ -134,12 +133,26 @@ if(HAVE_X86ASM)
   endif()
 endif()
 
+if(HAVE_NEON AND FFMPEG_SWSCALE)
+  add_executable(ffmpeg_ops_generator EXCLUDE_FROM_ALL "${FFMPEG_SOURCE_DIR}/libswscale/aarch64/ops_static.c")
+  target_link_libraries(ffmpeg_ops_generator PRIVATE ffmpeg_build_options)
+  add_custom_command(OUTPUT "${FF_GENERATED}/libswscale/aarch64/ops_neon.gen.S"
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/capture.py"
+      --output "${FF_GENERATED}/libswscale/aarch64/ops_neon.gen.S" -- "$<TARGET_FILE:ffmpeg_ops_generator>"
+    DEPENDS ffmpeg_ops_generator "${PROJECT_SOURCE_DIR}/tools/capture.py" VERBATIM)
+endif()
+
 foreach(lib IN LISTS FF_ENABLED_LIBS)
   foreach(asm_source IN LISTS FF_ASM_${lib})
     get_filename_component(asm_dir "${asm_source}" DIRECTORY)
     set_source_files_properties("${asm_source}" PROPERTIES COMPILE_OPTIONS "-I${asm_dir}/")
   endforeach()
   add_library(${lib} ${FF_SOURCES_${lib}} ${FF_ASM_${lib}})
+  set_target_properties(${lib} PROPERTIES VERSION "${FF_MAJOR_${lib}}" SOVERSION "${FF_MAJOR_${lib}}")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_SHARED_LIBS)
+    target_link_options(${lib} PRIVATE "LINKER:--version-script=${FF_GENERATED}/lib${lib}.ver")
+    set_property(TARGET ${lib} APPEND PROPERTY LINK_DEPENDS "${FF_GENERATED}/lib${lib}.ver")
+  endif()
   target_compile_definitions(${lib} PRIVATE $<$<COMPILE_LANGUAGE:C,CXX,OBJC>:HAVE_AV_CONFIG_H>)
   if(lib STREQUAL "swscale" AND TARGET ffmpeg_uops)
     add_dependencies(swscale ffmpeg_uops)

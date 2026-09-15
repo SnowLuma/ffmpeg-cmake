@@ -223,7 +223,7 @@ target_link_libraries(my_app PRIVATE FFmpeg::avformat FFmpeg::avcodec FFmpeg::sw
 - `cmake/platform/`：Windows、POSIX、Apple 框架和原生汇编支持，探测不运行目标程序。
 - `cmake/Dependencies.cmake`：原生依赖发现和固定版本依赖构建。
 - `tools/configure.py`：用 Python 标准库读取上游声明式依赖/文件列表，计算组件闭包，生成配置头、注册表和 CMake 源文件列表。不会执行这些上游脚本。
-- `tools/preprocess.py`：为 NASM 捕获编译器预处理输出，无 shell 管道。
+- `tools/capture.py`：捕获预处理器和 ARM64 代码生成工具的输出，无 shell 管道。
 - `tests/`：依赖解析回归、真实媒体往返测试、安装包消费示例。
 
 本机验证范围和可复现命令见 [VALIDATION.md](VALIDATION.md)。

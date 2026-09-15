@@ -405,6 +405,9 @@ def generate(source, output, options, facts):
             if not obj.endswith(".o"):
                 raise ValueError(f"Unsupported selected object in lib{lib}: {obj}")
             stem = obj[:-2]
+            if lib == "swscale" and stem == "aarch64/ops_neon.gen":
+                sources.append((output / "libswscale/aarch64/ops_neon.gen.S").as_posix())
+                continue
             candidates = [source / f"lib{lib}/{stem}{ext}" for ext in (".c", ".cpp", ".m", ".S", ".asm")]
             if not any(p.exists() for p in candidates) and "/" not in stem:
                 candidates += [source / f"libavutil/{stem}.c", source / f"libavcodec/{stem}.c"]
@@ -415,6 +418,15 @@ def generate(source, output, options, facts):
         emit_list(f"FF_SOURCES_{lib}", sorted(set(sources)))
         emit_list(f"FF_ASM_{lib}", sorted(set(assembly)))
         emit_list(f"FF_HEADERS_{lib}", [str(source / f"lib{lib}" / p).replace("\\", "/") for p in lists.values("HEADERS")])
+        version_file = source / f"lib{lib}" / ("version.h" if lib == "avutil" else "version_major.h")
+        all_inputs.add(version_file)
+        major = next(line.split()[2] for line in version_file.read_text().splitlines()
+                     if line.startswith(f"#define LIB{lib.upper()}_VERSION_MAJOR "))
+        emit_list(f"FF_MAJOR_{lib}", [major])
+        if options["system"] == "Linux" and facts.get("shared"):
+            version_script = source / f"lib{lib}/lib{lib}.v"
+            all_inputs.add(version_script)
+            write_if_changed(output / f"lib{lib}.ver", version_script.read_text().replace("MAJOR", major))
     lists = ObjectLists(source, flags, options["arch"])
     lists.read(source / "fftools/Makefile")
     all_inputs.update(lists.inputs)
