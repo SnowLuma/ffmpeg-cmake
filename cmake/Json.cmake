@@ -1,0 +1,7 @@
+function(ff_json_string output value)
+  string(REPLACE "\\" "\\\\" value "${value}")
+  string(REPLACE "\"" "\\\"" value "${value}")
+  string(REPLACE "\n" "\\n" value "${value}")
+  string(REPLACE "\r" "\\r" value "${value}")
+  set(${output} "\"${value}\"" PARENT_SCOPE)
+endfunction()

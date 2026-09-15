@@ -1,5 +1,5 @@
 if(FFMPEG_CACHE AND NOT CMAKE_C_COMPILER_LAUNCHER)
-  find_program(FFMPEG_COMPILER_CACHE sccache HINTS "${PROJECT_SOURCE_DIR}/.tools/bin")
+  find_program(FFMPEG_COMPILER_CACHE sccache HINTS "${FFMPEG_ROOT}/.tools/bin")
   if(FFMPEG_COMPILER_CACHE)
     set(CMAKE_C_COMPILER_LAUNCHER "${FFMPEG_COMPILER_CACHE}")
     set(CMAKE_CXX_COMPILER_LAUNCHER "${FFMPEG_COMPILER_CACHE}")
@@ -21,4 +21,15 @@ set(CMAKE_JOB_POOL_LINK ffmpeg_link)
 if(FFMPEG_COMPILE_JOBS)
   set_property(GLOBAL APPEND PROPERTY JOB_POOLS "ffmpeg_compile=${FFMPEG_COMPILE_JOBS}")
   set(CMAKE_JOB_POOL_COMPILE ffmpeg_compile)
+endif()
+
+find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND CMAKE_GENERATOR MATCHES "Ninja")
+  # Read MSVC's UTF-8 JSON dependencies instead of relying on localized
+  # /showIncludes text, which cache clients can decode lossily.
+  foreach(lang C CXX)
+    set(CMAKE_${lang}_COMPILER_LAUNCHER "${Python3_EXECUTABLE};${FFMPEG_ROOT}/tools/msvc_driver.py;--;${CMAKE_${lang}_COMPILER_LAUNCHER}")
+  endforeach()
+  set(CMAKE_CL_SHOWINCLUDES_PREFIX "Note: including file: ")
+
 endif()

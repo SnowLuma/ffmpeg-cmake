@@ -19,27 +19,100 @@ concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SCCACHE_GHA_ENABLED: 'false'
+  SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+  SCCACHE_CACHE_SIZE: 768M
+  PYTHONUTF8: '1'
+
 jobs:
   source:
     runs-on: ubuntu-24.04
     outputs:
-      revision: ${{ steps.source.outputs.revision }}
+      revision: ${{ steps.resolve.outputs.revision }}
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve FFmpeg revision
-        id: source
+      - name: Resolve FFmpeg revision without cloning
+        id: resolve
         env:
           FFMPEG_BRANCH: ${{ inputs.ffmpeg_branch || 'master' }}
           FFMPEG_REVISION: ${{ inputs.ffmpeg_revision }}
+        run: python3 tools/ci.py resolve
+      - name: Fetch source once for the entire matrix
+        env:
+          FFMPEG_BRANCH: ${{ inputs.ffmpeg_branch || 'master' }}
+          FFMPEG_REVISION: ${{ steps.resolve.outputs.revision }}
+        run: python3 tools/ci.py source
+      - name: Python regression tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-source
+          path: ffmpeg-source.tar.gz
+          compression-level: 0
+          retention-days: 1
+
+  prepare:
+    needs: source
+    name: Dependencies / ${{ matrix.target.name }}
+    runs-on: ${{ matrix.target.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - {name: windows-x64, runner: windows-2022, preset: windows-msvc}
+          - {name: linux-x64, runner: ubuntu-24.04, preset: linux}
+          - {name: linux-arm64, runner: ubuntu-24.04-arm, preset: linux}
+          - {name: macos-x64, runner: macos-15-intel, preset: macos}
+          - {name: macos-arm64, runner: macos-15, preset: macos}
+    env:
+      PRESET: ${{ matrix.target.preset }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-source
+      - uses: actions/cache@v4
+        id: dependencies
+        with:
+          path: |
+            .cache/dependency-packages/*/prefix
+            .cache/probes
+          key: dependencies-v1-${{ matrix.target.name }}-${{ env.ImageVersion }}-${{ hashFiles('tools/dependencies.*', 'cmake/Dependency*.cmake', 'cmake/FeatureCache.cmake', 'cmake/Options.cmake', 'cmake/Acceleration.cmake', '.github/requirements-build.txt') }}
+          restore-keys: |
+            dependencies-v1-${{ matrix.target.name }}-${{ env.ImageVersion }}-
+      - name: Build dependencies and cache platform checks
+        run: python tools/ci.py prepare
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-${{ matrix.target.name }}
+          path: prepared.tar.gz
+          compression-level: 0
+          retention-days: 1
+      - name: Preparation summary
+        shell: python
+        env:
+          CACHE_HIT: ${{ steps.dependencies.outputs.cache-hit }}
         run: |
-          python3 tools/sources.py --branch "$FFMPEG_BRANCH" ${FFMPEG_REVISION:+--revision "$FFMPEG_REVISION"}
-          echo "revision=$(git -C ffmpeg rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          import os
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              print('Dependency cache hit:', os.environ['CACHE_HIT'], file=out)
+              print('11 native dependencies; static and shared builds reuse the same installation.', file=out)
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: dependency-logs-${{ matrix.target.name }}
+          path: |
+            build/*/CMakeFiles/CMakeConfigureLog.yaml
+            .cache/dependency-packages/*/build/CMakeFiles/CMakeConfigureLog.yaml
 
   build:
-    needs: source
+    needs: [source, prepare]
     name: ${{ matrix.target.name }} / shared=${{ matrix.shared }}
     runs-on: ${{ matrix.target.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -51,73 +124,36 @@ jobs:
           - {name: macos-x64, runner: macos-15-intel, preset: macos}
           - {name: macos-arm64, runner: macos-15, preset: macos}
     env:
-      SCCACHE_GHA_ENABLED: 'true'
-      SCCACHE_CACHE_SIZE: 2G
       PRESET: ${{ matrix.target.preset }}
-      FFMPEG_BRANCH: ${{ inputs.ffmpeg_branch || 'master' }}
-      FFMPEG_REVISION: ${{ needs.source.outputs.revision }}
+      TARGET: ${{ matrix.target.name }}
       SHARED: ${{ matrix.shared }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
         with:
-          python-version: '3.12'
-      - name: Install CMake and Ninja
-        run: python -m pip install cmake==3.31.6 ninja==1.11.1.3
-      - name: Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nasm zlib1g-dev libbz2-dev liblzma-dev libasound2-dev libsdl2-dev
-      - name: macOS dependencies
-        if: runner.os == 'macOS'
-        run: brew install nasm sdl2
+          name: ffmpeg-source
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-${{ matrix.target.name }}
       - uses: actions/cache@v4
-        if: runner.os == 'Windows'
         with:
-          path: .tools/downloads
-          key: native-tools-${{ runner.os }}-${{ hashFiles('tools/bootstrap.py') }}
-      - name: Windows dependencies
-        if: runner.os == 'Windows'
-        run: python tools/bootstrap.py
-      - uses: mozilla-actions/sccache-action@v0.0.11
-        with:
-          version: v0.18.0
-      - name: Fetch selected FFmpeg source
-        shell: python
-        run: |
-          import os, subprocess
-          subprocess.run(['python', 'tools/sources.py', '--branch', os.environ['FFMPEG_BRANCH'], '--revision', os.environ['FFMPEG_REVISION']], check=True)
-      - name: Build and test
-        shell: python
-        run: |
-          import os, subprocess
-          subprocess.run(['python', 'build.py', '--preset', os.environ['PRESET'], '--action', 'test', '--jobs', '4', '--', '-DBUILD_SHARED_LIBS=' + os.environ['SHARED'], '-DFFMPEG_ASM=ON'], check=True)
-      - name: Install and test package
-        shell: python
-        run: |
-          import os, subprocess
-          from pathlib import Path
-          preset = os.environ['PRESET']
-          subprocess.run(['cmake', '--install', 'build/' + preset], check=True)
-          subprocess.run(['python', 'tests/package.py', '--prefix', str(Path('install', preset).resolve())], check=True)
-      - name: Verify header dependencies
-        shell: python
-        run: |
-          import os, subprocess
-          subprocess.run(['python', 'tests/incremental.py', '--build', 'build/' + os.environ['PRESET']], check=True)
+          path: .cache/sccache
+          key: objects-v1-${{ matrix.target.name }}-${{ matrix.shared }}-${{ env.ImageVersion }}-${{ needs.source.outputs.revision }}-${{ github.sha }}
+          restore-keys: |
+            objects-v1-${{ matrix.target.name }}-${{ matrix.shared }}-${{ env.ImageVersion }}-
+      - name: Build, test and verify installed package
+        run: python tools/ci.py build
       - name: Cache statistics
         if: always()
         run: sccache --show-stats
       - name: Archive installation
-        shell: python
-        run: |
-          import os, shutil
-          shutil.make_archive('ffmpeg-${{ matrix.target.name }}-shared-${{ matrix.shared }}', 'gztar', 'install/' + os.environ['PRESET'])
+        run: python tools/ci.py archive
       - uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ matrix.target.name }}-shared-${{ matrix.shared }}
-          path: ffmpeg-*.tar.gz
+          path: ffmpeg-${{ matrix.target.name }}-shared-${{ matrix.shared }}.tar.gz
+          compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@v4
         if: failure()

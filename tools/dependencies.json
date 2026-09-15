@@ -1,0 +1,203 @@
+{
+  "presets": {
+    "media": [
+      "zlib",
+      "opus",
+      "vorbis",
+      "webp",
+      "freetype",
+      "harfbuzz"
+    ],
+    "all": [
+      "zlib",
+      "opus",
+      "vorbis",
+      "webp",
+      "freetype",
+      "harfbuzz",
+      "aom",
+      "x265",
+      "xz",
+      "sdl2"
+    ]
+  },
+  "libraries": {
+    "zlib": {
+      "repository": "https://github.com/madler/zlib.git",
+      "revision": "da607da739fa6047df13e66a2af6b8bec7c2a498",
+      "version": "1.3.2",
+      "options": {
+        "ZLIB_BUILD_SHARED": "OFF",
+        "ZLIB_BUILD_STATIC": "ON",
+        "ZLIB_BUILD_TESTING": "OFF",
+        "ZLIB_INSTALL": "ON"
+      },
+      "licenses": [
+        "LICENSE"
+      ]
+    },
+    "opus": {
+      "repository": "https://github.com/xiph/opus.git",
+      "revision": "22244de5a79bd1d6d623c32e72bf1954b56235be",
+      "version": "1.6.1",
+      "options": {
+        "OPUS_BUILD_PROGRAMS": "OFF",
+        "OPUS_BUILD_TESTING": "OFF",
+        "OPUS_INSTALL_PKG_CONFIG_MODULE": "ON",
+        "OPUS_INSTALL_CMAKE_CONFIG_MODULE": "ON"
+      },
+      "licenses": [
+        "COPYING"
+      ]
+    },
+    "ogg": {
+      "repository": "https://github.com/xiph/ogg.git",
+      "revision": "be05b13e98b048f0b5a0f5fa8ce514d56db5f822",
+      "version": "1.3.6",
+      "options": {
+        "INSTALL_DOCS": "OFF"
+      },
+      "licenses": [
+        "COPYING"
+      ]
+    },
+    "vorbis": {
+      "repository": "https://github.com/xiph/vorbis.git",
+      "revision": "0657aee69dec8508a0011f47f3b69d7538e9d262",
+      "version": "1.3.7",
+      "requires": [
+        "ogg"
+      ],
+      "licenses": [
+        "COPYING"
+      ]
+    },
+    "webp": {
+      "repository": "https://github.com/webmproject/libwebp.git",
+      "revision": "4fa21912338357f89e4fd51cf2368325b59e9bd9",
+      "version": "1.6.0",
+      "options": {
+        "WEBP_BUILD_ANIM_UTILS": "OFF",
+        "WEBP_BUILD_CWEBP": "OFF",
+        "WEBP_BUILD_DWEBP": "OFF",
+        "WEBP_BUILD_GIF2WEBP": "OFF",
+        "WEBP_BUILD_IMG2WEBP": "OFF",
+        "WEBP_BUILD_VWEBP": "OFF",
+        "WEBP_BUILD_WEBPINFO": "OFF",
+        "WEBP_BUILD_WEBPMUX": "OFF",
+        "WEBP_BUILD_EXTRAS": "OFF",
+        "WEBP_BUILD_LIBWEBPMUX": "ON"
+      },
+      "licenses": [
+        "COPYING",
+        "PATENTS"
+      ]
+    },
+    "freetype": {
+      "repository": "https://github.com/freetype/freetype.git",
+      "revision": "0a0221a1347e2f1e07c395263540026e9a0aa7c7",
+      "version": "2.14.3",
+      "requires": [
+        "zlib"
+      ],
+      "options": {
+        "FT_DISABLE_BZIP2": "ON",
+        "FT_DISABLE_PNG": "ON",
+        "FT_DISABLE_HARFBUZZ": "ON",
+        "FT_DISABLE_BROTLI": "ON",
+        "FT_REQUIRE_ZLIB": "ON"
+      },
+      "licenses": [
+        "LICENSE.TXT",
+        "docs/FTL.TXT",
+        "docs/GPLv2.TXT"
+      ]
+    },
+    "harfbuzz": {
+      "repository": "https://github.com/harfbuzz/harfbuzz.git",
+      "revision": "36cb489cb02ce4b92099669ba9f9bea348eff93f",
+      "version": "14.4.0",
+      "options": {
+        "HB_BUILD_UTILS": "OFF",
+        "HB_BUILD_SUBSET": "OFF",
+        "HB_HAVE_FREETYPE": "ON",
+        "HB_HAVE_GLIB": "OFF",
+        "HB_HAVE_ICU": "OFF",
+        "HB_HAVE_CAIRO": "OFF",
+        "HB_BUILD_RASTER": "OFF",
+        "HB_BUILD_VECTOR": "OFF",
+        "HB_BUILD_GPU": "OFF",
+        "HB_HAVE_CORETEXT": "OFF"
+      },
+      "licenses": [
+        "COPYING"
+      ],
+      "requires": [
+        "freetype"
+      ]
+    },
+    "aom": {
+      "repository": "https://aomedia.googlesource.com/aom",
+      "revision": "03087864cf4bea6abb0d28f95cf7843511413d8f",
+      "version": "3.14.1",
+      "options": {
+        "ENABLE_TESTS": "OFF",
+        "ENABLE_DOCS": "OFF",
+        "ENABLE_EXAMPLES": "OFF",
+        "ENABLE_TOOLS": "OFF"
+      },
+      "licenses": [
+        "LICENSE",
+        "PATENTS"
+      ]
+    },
+    "x265": {
+      "repository": "https://github.com/Multicorewareinc/x265.git",
+      "revision": "e9b88125dc21393b3fd8d68e98083bdfb89778a8",
+      "version": "4.3",
+      "source_subdir": "source",
+      "gpl": true,
+      "options": {
+        "ENABLE_SHARED": "OFF",
+        "ENABLE_CLI": "OFF",
+        "ENABLE_LIBNUMA": "OFF",
+        "ENABLE_PIC": "ON",
+        "ENABLE_SVT_HEVC": "OFF"
+      },
+      "licenses": [
+        "COPYING"
+      ],
+      "tag": "4.3"
+    },
+    "xz": {
+      "repository": "https://github.com/tukaani-project/xz.git",
+      "revision": "4b73f2ec19a99ef465282fbce633e8deb33691b3",
+      "version": "5.8.3",
+      "options": {
+        "XZ_TOOL_XZ": "OFF",
+        "XZ_TOOL_XZDEC": "OFF",
+        "XZ_TOOL_LZMADEC": "OFF",
+        "XZ_TOOL_LZMAINFO": "OFF",
+        "XZ_DOC": "OFF"
+      },
+      "licenses": [
+        "COPYING",
+        "COPYING.0BSD"
+      ]
+    },
+    "sdl2": {
+      "repository": "https://github.com/libsdl-org/SDL.git",
+      "revision": "5d249570393f7a37e037abf22cd6012a4cc56a71",
+      "version": "2.32.10",
+      "options": {
+        "SDL_SHARED": "OFF",
+        "SDL_STATIC": "ON",
+        "SDL_TEST": "OFF",
+        "SDL_TESTS": "OFF"
+      },
+      "licenses": [
+        "LICENSE.txt"
+      ]
+    }
+  }
+}

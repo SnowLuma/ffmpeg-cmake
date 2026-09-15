@@ -1,4 +1,5 @@
 """Install pinned, portable Windows build helpers locally; no admin or MSYS2."""
+import argparse
 import hashlib
 import io
 import os
@@ -16,11 +17,16 @@ PACKAGES = (
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--only", choices=("nasm", "sccache"))
+    args = parser.parse_args()
     if os.name != "nt":
         raise SystemExit("On Linux/macOS install nasm and ccache/sccache with your package manager.")
     directory = ROOT / ".tools/bin"
     directory.mkdir(parents=True, exist_ok=True)
     for name, version, url, digest in PACKAGES:
+        if args.only and name != args.only:
+            continue()
         archive = ROOT / ".tools/downloads" / url.rsplit("/", 1)[1]
         archive.parent.mkdir(parents=True, exist_ok=True)
         if not archive.exists():

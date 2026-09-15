@@ -1,0 +1,37 @@
+name: Native build tools
+description: Install native compilers' helpers and restore downloads
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: pip
+        cache-dependency-path: .github/requirements-build.txt
+    - shell: python
+      run: |
+        import subprocess, sys
+        subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check', '-r', '.github/requirements-build.txt'], check=True)
+    - name: Linux system libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends nasm libbz2-dev libasound2-dev
+    - name: macOS assembler
+      if: runner.os == 'macOS' && runner.arch == 'X64'
+      shell: bash
+      run: brew install nasm
+    - uses: actions/cache@v4
+      id: tools
+      if: runner.os == 'Windows'
+      with:
+        path: .tools
+        key: native-nasm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/bootstrap.py') }}
+    - name: Windows assembler
+      if: runner.os == 'Windows' && steps.tools.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: python tools/bootstrap.py --only nasm
+    - uses: mozilla-actions/sccache-action@v0.0.11
+      with:
+        version: v0.18.0

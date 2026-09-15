@@ -78,7 +78,7 @@ cmake --install build/windows-msvc
 - 自动检测 Windows DXVA2、D3D11VA、D3D12VA、Media Foundation、DirectShow、GDI、VFW、Graphics Capture 和 Schannel。
 - 自动检测 zlib、BZip2、LibLZMA、Iconv、SDL2；找不到 zlib 时默认通过原生 CMake 构建固定版本 zlib 1.3.2。
 - GPL 和 version3 的默认值遵循上游，均为 OFF。需要对应组件时用 `-DFFMPEG_GPL=ON`、`-DFFMPEG_VERSION3=ON`。
-- 外部编码库、GPU SDK 等各自需要独立适配和依赖；没有检测成功的功能不会被冒充为可用。
+- 可选外部库使用下方的固定版本构建配方；GPU SDK 仍需单独提供和适配。
 - 硬件加速编译成功不代表当前机器的 GPU 支持所有编码格式，运行时仍由 FFmpeg 检测。
 
 ## Linux / macOS
@@ -165,11 +165,59 @@ python tools/configure.py --list all
 另外提供 `playback` 和 `transcode` 示例预设；这些预设仅在显式选择时生效。
 缓存中的自定义选项会保留，恢复组默认值用 `-DFFMPEG_DECODERS=AUTO` 等。
 
+## 外部库原生构建
+
+```sh
+# 常用音频、WebP、文字渲染依赖；FFmpeg 本身仍是 full
+python build.py --deps media --action test
+
+# 所有配方，包括 AOM、x265、SDL2、XZ；x265 需要显式允许 GPL
+python build.py --deps all --action test -- -DFFMPEG_GPL=ON
+
+# 按需选库，自动补齐 Ogg、zlib 等依赖
+python build.py --deps opus,vorbis,webp
+```
+
+| 配方 | 固定版本 | 用途 |
+| --- | --- | --- |
+| `zlib` | 1.3.2 | 压缩、PNG 等内置编码器 |
+| `opus` | 1.6.1 | Opus 编解码 |
+| `ogg` / `vorbis` | 1.3.6 / 1.3.7 | Vorbis 编解码 |
+| `webp` | 1.6.0 | WebP 静态图像和动画编码 |
+| `freetype` / `harfbuzz` | 2.14.3 / 14.4.0 | 字体、文字 shaping、drawtext |
+| `aom` | 3.14.1 | AV1 编解码 |
+| `x265` | 4.3 | HEVC 编码，要求 GPL |
+| `xz` | 5.8.3 | liblzma 压缩 |
+| `sdl2` | 2.32.10 | ffplay |
+
+`media` 包含 zlib、Opus、Ogg/Vorbis、WebP、FreeType、HarfBuzz；`all` 包含表中全部库。
+默认不下载这些可选依赖（原有缺失时补建 zlib 的行为保留）。所有配方固定到上游 Git 提交，见
+[tools/dependencies.json](tools/dependencies.json)。外部库编译为带 PIC 的静态库，可同时供 FFmpeg 静态和动态构建使用。
+每个库的二进制缓存保存在 `.cache/dependency-packages/`，按依赖图合并到 `.cache/dependencies/`，兼容的后续配置直接复用安装目录，不再运行依赖的配置或编译；调整选库时复用已有库，改变某个库的配方只使它和依赖它的库失效。
+安装 FFmpeg 时会一并安装这些库、头文件、CMake 包、版本清单和许可证。
+
+AOM 的代码生成需要 Perl。Windows 自动使用 Git for Windows 已附带的 Perl，无需另装 MSYS2；Linux/macOS 使用系统 Perl。
+所有依赖的编译都使用原生 CMake/Ninja，NASM 和 ARM64 汇编优化保持开启。
+
+已有安装目录可通过 `-DFFMPEG_DEPENDENCY_PREFIX=/path/to/prefix` 直接复用；系统提供的 CMake 包通过
+`CMAKE_PREFIX_PATH` 查找。该目录应与当前编译器、架构和 C/C++ 运行库兼容。
+对于提供 pkg-config 元数据的外部安装，可显式指定，例如：
+
+```sh
+python build.py -- -DFFMPEG_PKG_CONFIG_LIBRARIES="libdav1d;libass;libvpx"
+```
+
+pkg-config 接入还支持 libx264（需 GPL）、libmp3lame、libsvtav1，以及上述音频/字体/WebP 库。
+这些接口使用外部已安装的库，未提供它们的源码构建配方。默认发布配置不启用 nonfree 库。
+
 ## 编译加速和构建选项
 
 | 选项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `FFMPEG_CACHE` | ON | 使用 sccache；不覆盖调用方设置的 compiler launcher |
+| `FFMPEG_PROBE_CACHE` | ON | 跨构建目录复用平台特性检测 |
+| `FFMPEG_PROBE_CACHE_DIR` | `.cache/probes` | 检测结果保存目录 |
+| `FFMPEG_DEPENDENCIES` | 空 | `media`、`all` 或分号分隔的外部库 |
 | `FFMPEG_COMPILE_JOBS` | 空 | Ninja 默认并行数；也可用 `build.ps1 -Jobs 12` |
 | `FFMPEG_LINK_JOBS` | 2 | 限制同时链接数量 |
 | `FFMPEG_ASM` | AUTO | 启用本架构汇编实现和运行时 CPU 分派 |
@@ -179,6 +227,12 @@ python tools/configure.py --list all
 | `FFMPEG_PROGRAMS` | ON | 构建命令行程序 |
 | `FFMPEG_NETWORK` | ON | 网络支持 |
 | `FFMPEG_FETCH_ZLIB` | ON | 缺少系统 zlib 时下载并构建固定版本 |
+
+平台检测缓存只保存布尔结果，不复制包含绝对路径的 `CMakeCache.txt`。编译器二进制/版本、目标架构、
+编译参数、SDK、系统包状态、runner 镜像或检测源码改变时会自动失效。`full`/裁剪选择和静态/动态开关仍重新计算。
+手工修改自定义 SDK 头文件时，可更改 `-DFFMPEG_PROBE_CACHE_SALT=my-sdk-v2`；
+`FFMPEG_PROBE_CACHE=OFF` 禁用跨目录缓存，原构建目录仍保留 CMake 自带缓存。
+`python tests/probe_cache.py` 用真实编译器验证命中和失效。
 
 元数据文件内容不变时不重写，防止配置过程触发无意义的全量重编译。
 Ninja 跟踪 C/C++、预处理汇编和 NASM 的头文件依赖；Release 不生成调试信息，Debug/RelWithDebInfo 使用嵌入式调试信息，适配编译缓存。
@@ -206,10 +260,14 @@ target_link_libraries(my_app PRIVATE FFmpeg::avformat FFmpeg::avcodec FFmpeg::sw
 每个平台都构建静态库和动态库。默认 `full`，不按场景裁剪。
 手动运行可选择 `ffmpeg_branch` 和 `ffmpeg_revision`；各矩阵任务使用同一个解析后的提交。
 
-- sccache 使用 GitHub Actions cache 保存编译结果；Windows 下载包使用 `actions/cache`。
-- 执行真实媒体往返、头文件增量编译检查，以及安装后独立 C 项目的链接与运行测试。
+- FFmpeg 源码只拉取一次，通过压缩包分发给矩阵任务。
+- 每个平台只构建一次全部 11 个外部依赖，并缓存安装目录和平台检测结果；静态、动态两组共用准备产物。
+- CI 显式开启 GPL 以验证 x265；本地默认许可开关保持关闭。
+- sccache 使用本地磁盘后端，`actions/cache` 批量恢复/保存；按平台、架构、镜像和链接类型分开缓存。
+- Python 包下载和 Windows 工具也有缓存；Windows 不再重复下载两份 sccache。
+- 执行真实媒体往返、外部编码器与 drawtext 测试、缓存失效回归、头文件增量检查，以及安装后独立 C 项目的链接与运行测试。
 - 安装产物打包为 `.tar.gz` 上传，包含程序、头文件、库、CMake 包、许可证和组件报告。
-- 缓存只加速构建，每次都重新配置并运行测试。失败时上传配置日志和组件报告。
+- 每次仍解析组件并运行测试，兼容的编译探测直接复用；归档使用快速 gzip，上传时关闭重复压缩。失败时上传配置日志和组件报告。
 
 工作流的多平台构建与产物上传安排参考了
 [NapNeko/ffmpegAddon](https://github.com/NapNeko/ffmpegAddon/blob/master/.github/workflows/build-ffmpeg-and-addon.yml)。

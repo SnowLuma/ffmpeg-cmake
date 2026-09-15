@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--jobs", type=int, default=0, help="Parallel compile jobs; 0 uses Ninja's default")
     parser.add_argument("--branch", help="Fetch this FFmpeg branch before configuring")
     parser.add_argument("--bootstrap", action="store_true", help="Install portable NASM and sccache on Windows")
+    parser.add_argument("--deps", help="Build external dependencies: media, all, or comma-separated library names")
     parser.add_argument("cmake_args", nargs=argparse.REMAINDER, help="Extra CMake options after --")
     args = parser.parse_args()
     if os.name == "nt":
@@ -52,6 +53,8 @@ def main():
     if args.branch or not (ROOT / "ffmpeg/configure").exists():
         sources.fetch(args.branch or "master")
     extra = args.cmake_args[1:] if args.cmake_args[:1] == ["--"] else args.cmake_args
+    if args.deps is not None:
+        extra = ["-DFFMPEG_DEPENDENCIES=" + args.deps.replace(",", ";"), *extra]
     run("cmake", "--preset", args.preset, *extra)
     if args.action != "configure":
         parallel = ("--parallel", args.jobs) if args.jobs else ()

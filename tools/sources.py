@@ -14,15 +14,13 @@ def git(*args):
 def fetch(branch="master", revision=None):
     source = ROOT / "ffmpeg"
     if not (source / ".git").exists():
-        git("clone", "--depth=1", "--branch", branch, URL, source)
+        git("init", source)
+        git("-C", source, "remote", "add", "origin", URL)
     else:
         if git("-C", source, "status", "--porcelain"):
             raise SystemExit("ffmpeg/ has local changes; commit or stash them before updating.")
-        git("-C", source, "fetch", "--depth=1", "origin", branch)
-        git("-C", source, "checkout", "--detach", "FETCH_HEAD")
-    if revision:
-        git("-C", source, "fetch", "--depth=1", "origin", revision)
-        git("-C", source, "checkout", "--detach", "FETCH_HEAD")
+    git("-C", source, "fetch", "--depth=1", "origin", revision or branch)
+    git("-C", source, "checkout", "--detach", "FETCH_HEAD")
     print(f"FFmpeg {branch}: {git('-C', source, 'rev-parse', 'HEAD')}")
 
 
