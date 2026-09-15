@@ -1,0 +1,7 @@
+/build/
+/ffmpeg/
+/install/
+/.tools/
+/CMakeUserPresets.json
+__pycache__/
+*.pyc

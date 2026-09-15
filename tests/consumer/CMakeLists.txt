@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.25)
+project(ffmpeg_consumer C)
+find_package(FFmpeg REQUIRED COMPONENTS avcodec avformat avfilter)
+add_executable(consumer main.c)
+target_link_libraries(consumer PRIVATE FFmpeg::avformat FFmpeg::avcodec FFmpeg::avfilter)
+enable_testing()
+add_test(NAME consumer COMMAND consumer)

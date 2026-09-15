@@ -1,0 +1,173 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install/${presetName}",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": true
+      }
+    },
+    {
+      "name": "default",
+      "displayName": "All available built-in components",
+      "inherits": "base"
+    },
+    {
+      "name": "macos",
+      "displayName": "macOS AppleClang, full",
+      "inherits": "base"
+    },
+    {
+      "name": "linux",
+      "displayName": "Linux GCC/Clang, full",
+      "inherits": "base"
+    },
+    {
+      "name": "windows",
+      "displayName": "Windows clang-cl, full",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "windows-shared",
+      "displayName": "Windows clang-cl, full DLL build",
+      "inherits": "windows",
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": true
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows MSVC, full",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl"
+      }
+    },
+    {
+      "name": "minimal",
+      "inherits": "base",
+      "cacheVariables": {
+        "FFMPEG_PROFILE": "minimal",
+        "FFMPEG_PROGRAMS": false
+      }
+    },
+    {
+      "name": "playback",
+      "inherits": "base",
+      "cacheVariables": {
+        "FFMPEG_PROFILE": "playback"
+      }
+    },
+    {
+      "name": "transcode",
+      "inherits": "base",
+      "cacheVariables": {
+        "FFMPEG_PROFILE": "transcode"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "windows",
+      "configurePreset": "windows"
+    },
+    {
+      "name": "windows-shared",
+      "configurePreset": "windows-shared"
+    },
+    {
+      "name": "windows-msvc",
+      "configurePreset": "windows-msvc"
+    },
+    {
+      "name": "minimal",
+      "configurePreset": "minimal"
+    },
+    {
+      "name": "playback",
+      "configurePreset": "playback"
+    },
+    {
+      "name": "transcode",
+      "configurePreset": "transcode"
+    },
+    {
+      "name": "linux",
+      "configurePreset": "linux"
+    },
+    {
+      "name": "macos",
+      "configurePreset": "macos"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows",
+      "configurePreset": "windows",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-shared",
+      "configurePreset": "windows-shared",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "configurePreset": "windows-msvc",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "minimal",
+      "configurePreset": "minimal",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux",
+      "configurePreset": "linux",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos",
+      "configurePreset": "macos",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
