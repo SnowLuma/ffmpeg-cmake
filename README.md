@@ -261,7 +261,8 @@ target_link_libraries(my_app PRIVATE FFmpeg::avformat FFmpeg::avcodec FFmpeg::sw
 手动运行可选择 `ffmpeg_branch` 和 `ffmpeg_revision`；各矩阵任务使用同一个解析后的提交。
 
 - FFmpeg 源码只拉取一次，通过压缩包分发给矩阵任务。
-- 每个平台只构建一次全部 11 个外部依赖，并缓存安装目录和平台检测结果；静态、动态两组共用准备产物。
+- 每个平台只构建一次全部 11 个外部依赖，并缓存安装目录和平台检测结果；静态、动态两组共用准备产物。各平台独立推进，一个平台失败不会阻塞其他平台。
+- 失败任务也保存已完成的依赖包；修复重跑时只补建缺失的包。
 - CI 显式开启 GPL 以验证 x265；本地默认许可开关保持关闭。
 - sccache 使用本地磁盘后端，`actions/cache` 批量恢复/保存；按平台、架构、镜像和链接类型分开缓存。
 - Python 包下载和 Windows 工具也有缓存；Windows 不再重复下载两份 sccache。

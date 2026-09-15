@@ -26,7 +26,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=True)
     for name, version, url, digest in PACKAGES:
         if args.only and name != args.only:
-            continue()
+            continue
         archive = ROOT / ".tools/downloads" / url.rsplit("/", 1)[1]
         archive.parent.mkdir(parents=True, exist_ok=True)
         if not archive.exists():

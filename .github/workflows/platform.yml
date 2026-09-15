@@ -1,0 +1,132 @@
+name: Native platform
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      runner:
+        required: true
+        type: string
+      preset:
+        required: true
+        type: string
+      revision:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SCCACHE_GHA_ENABLED: 'false'
+  SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
+  SCCACHE_CACHE_SIZE: 768M
+  PYTHONUTF8: '1'
+
+jobs:
+  prepare:
+    name: Dependencies
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 45
+    env:
+      PRESET: ${{ inputs.preset }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-source
+      - uses: actions/cache/restore@v4
+        id: dependencies
+        with:
+          path: |
+            .cache/dependency-packages/*/prefix
+            .cache/probes
+          key: dependencies-v1-${{ inputs.target }}-${{ env.FFMPEG_RUNNER_IMAGE }}-${{ hashFiles('tools/dependencies.*', 'cmake/Dependency*.cmake', 'cmake/FeatureCache.cmake', 'cmake/Options.cmake', 'cmake/Acceleration.cmake', '.github/requirements-build.txt') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            dependencies-v1-${{ inputs.target }}-${{ env.FFMPEG_RUNNER_IMAGE }}-
+            dependencies-v1-${{ inputs.target }}-
+      - name: Build dependencies and cache platform checks
+        run: python tools/ci.py prepare
+      - uses: actions/cache/save@v4
+        if: always() && steps.dependencies.outputs.cache-primary-key != ''
+        with:
+          path: |
+            .cache/dependency-packages/*/prefix
+            .cache/probes
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prepared-${{ inputs.target }}
+          path: prepared.tar.gz
+          compression-level: 0
+          retention-days: 1
+      - name: Preparation summary
+        shell: python
+        env:
+          CACHE_RESTORED: ${{ steps.dependencies.outputs.cache-matched-key }}
+        run: |
+          import os
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              print('Dependency cache restored:', os.environ['CACHE_RESTORED'], file=out)
+              print('11 native dependencies; static and shared builds reuse the same installation.', file=out)
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: dependency-logs-${{ inputs.target }}
+          include-hidden-files: true
+          path: |
+            build/*/CMakeFiles/CMakeConfigureLog.yaml
+            .cache/dependency-packages/*/build/CMakeFiles/CMakeConfigureLog.yaml
+
+  build:
+    needs: prepare
+    name: shared=${{ matrix.shared }}
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shared: ['OFF', 'ON']
+    env:
+      PRESET: ${{ inputs.preset }}
+      TARGET: ${{ inputs.target }}
+      SHARED: ${{ matrix.shared }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: ffmpeg-source
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-${{ inputs.target }}
+      - uses: actions/cache@v4
+        with:
+          path: .cache/sccache
+          key: objects-v1-${{ inputs.target }}-${{ matrix.shared }}-${{ env.FFMPEG_RUNNER_IMAGE }}-${{ inputs.revision }}-${{ github.sha }}
+          restore-keys: |
+            objects-v1-${{ inputs.target }}-${{ matrix.shared }}-${{ env.FFMPEG_RUNNER_IMAGE }}-
+      - name: Build, test and verify installed package
+        run: python tools/ci.py build
+      - name: Cache statistics
+        if: always()
+        run: sccache --show-stats
+      - name: Archive installation
+        run: python tools/ci.py archive
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ inputs.target }}-shared-${{ matrix.shared }}
+          path: ffmpeg-${{ inputs.target }}-shared-${{ matrix.shared }}.tar.gz
+          compression-level: 0
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: logs-${{ inputs.target }}-shared-${{ matrix.shared }}
+          path: |
+            build/*/CMakeFiles/CMakeConfigureLog.yaml
+            build/*/Testing/Temporary/LastTest.log
+            build/*/generated/components.json

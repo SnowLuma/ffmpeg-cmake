@@ -19,12 +19,6 @@ concurrency:
   group: build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  SCCACHE_GHA_ENABLED: 'false'
-  SCCACHE_DIR: ${{ github.workspace }}/.cache/sccache
-  SCCACHE_CACHE_SIZE: 768M
-  PYTHONUTF8: '1'
-
 jobs:
   source:
     runs-on: ubuntu-24.04
@@ -44,7 +38,9 @@ jobs:
           FFMPEG_REVISION: ${{ steps.resolve.outputs.revision }}
         run: python3 tools/ci.py source
       - name: Python regression tests
-        run: python3 -m unittest discover -s tests -p 'test_*.py'
+        run: |
+          python3 -m compileall -q build.py tools tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
       - uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-source
@@ -52,11 +48,9 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  prepare:
+  platform:
     needs: source
-    name: Dependencies / ${{ matrix.target.name }}
-    runs-on: ${{ matrix.target.runner }}
-    timeout-minutes: 45
+    name: ${{ matrix.target.name }}
     strategy:
       fail-fast: false
       matrix:
@@ -66,100 +60,9 @@ jobs:
           - {name: linux-arm64, runner: ubuntu-24.04-arm, preset: linux}
           - {name: macos-x64, runner: macos-15-intel, preset: macos}
           - {name: macos-arm64, runner: macos-15, preset: macos}
-    env:
-      PRESET: ${{ matrix.target.preset }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-source
-      - uses: actions/cache@v4
-        id: dependencies
-        with:
-          path: |
-            .cache/dependency-packages/*/prefix
-            .cache/probes
-          key: dependencies-v1-${{ matrix.target.name }}-${{ env.ImageVersion }}-${{ hashFiles('tools/dependencies.*', 'cmake/Dependency*.cmake', 'cmake/FeatureCache.cmake', 'cmake/Options.cmake', 'cmake/Acceleration.cmake', '.github/requirements-build.txt') }}
-          restore-keys: |
-            dependencies-v1-${{ matrix.target.name }}-${{ env.ImageVersion }}-
-      - name: Build dependencies and cache platform checks
-        run: python tools/ci.py prepare
-      - uses: actions/upload-artifact@v4
-        with:
-          name: prepared-${{ matrix.target.name }}
-          path: prepared.tar.gz
-          compression-level: 0
-          retention-days: 1
-      - name: Preparation summary
-        shell: python
-        env:
-          CACHE_HIT: ${{ steps.dependencies.outputs.cache-hit }}
-        run: |
-          import os
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              print('Dependency cache hit:', os.environ['CACHE_HIT'], file=out)
-              print('11 native dependencies; static and shared builds reuse the same installation.', file=out)
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: dependency-logs-${{ matrix.target.name }}
-          path: |
-            build/*/CMakeFiles/CMakeConfigureLog.yaml
-            .cache/dependency-packages/*/build/CMakeFiles/CMakeConfigureLog.yaml
-
-  build:
-    needs: [source, prepare]
-    name: ${{ matrix.target.name }} / shared=${{ matrix.shared }}
-    runs-on: ${{ matrix.target.runner }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        shared: ['OFF', 'ON']
-        target:
-          - {name: windows-x64, runner: windows-2022, preset: windows-msvc}
-          - {name: linux-x64, runner: ubuntu-24.04, preset: linux}
-          - {name: linux-arm64, runner: ubuntu-24.04-arm, preset: linux}
-          - {name: macos-x64, runner: macos-15-intel, preset: macos}
-          - {name: macos-arm64, runner: macos-15, preset: macos}
-    env:
-      PRESET: ${{ matrix.target.preset }}
-      TARGET: ${{ matrix.target.name }}
-      SHARED: ${{ matrix.shared }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - uses: actions/download-artifact@v4
-        with:
-          name: ffmpeg-source
-      - uses: actions/download-artifact@v4
-        with:
-          name: prepared-${{ matrix.target.name }}
-      - uses: actions/cache@v4
-        with:
-          path: .cache/sccache
-          key: objects-v1-${{ matrix.target.name }}-${{ matrix.shared }}-${{ env.ImageVersion }}-${{ needs.source.outputs.revision }}-${{ github.sha }}
-          restore-keys: |
-            objects-v1-${{ matrix.target.name }}-${{ matrix.shared }}-${{ env.ImageVersion }}-
-      - name: Build, test and verify installed package
-        run: python tools/ci.py build
-      - name: Cache statistics
-        if: always()
-        run: sccache --show-stats
-      - name: Archive installation
-        run: python tools/ci.py archive
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-${{ matrix.target.name }}-shared-${{ matrix.shared }}
-          path: ffmpeg-${{ matrix.target.name }}-shared-${{ matrix.shared }}.tar.gz
-          compression-level: 0
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: logs-${{ matrix.target.name }}-shared-${{ matrix.shared }}
-          path: |
-            build/*/CMakeFiles/CMakeConfigureLog.yaml
-            build/*/Testing/Temporary/LastTest.log
-            build/*/generated/components.json
+    uses: ./.github/workflows/platform.yml
+    with:
+      target: ${{ matrix.target.name }}
+      runner: ${{ matrix.target.runner }}
+      preset: ${{ matrix.target.preset }}
+      revision: ${{ needs.source.outputs.revision }}

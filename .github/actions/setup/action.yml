@@ -3,6 +3,12 @@ description: Install native compilers' helpers and restore downloads
 runs:
   using: composite
   steps:
+    - name: Runner cache identity
+      shell: python
+      run: |
+        import os
+        with open(os.environ['GITHUB_ENV'], 'a') as out:
+            print('FFMPEG_RUNNER_IMAGE=' + os.environ['ImageOS'] + '-' + os.environ['ImageVersion'], file=out)
     - uses: actions/setup-python@v5
       with:
         python-version: '3.12'

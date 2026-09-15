@@ -38,6 +38,8 @@ def main():
             run("-i", "input.wav", "-c:a", encoder, "audio.ogg")
             decoded = run("-i", "audio.ogg", "-f", "s16le", "-")
             assert len(decoded) >= len(samples) // 2, encoder
+            external_decoded = run("-c:a", encoder, "-i", "audio.ogg", "-f", "s16le", "-")
+            assert len(external_decoded) >= len(samples) // 2, encoder + " decoder"
             tested.append(encoder)
         pixels = bytes((x * 37 + y * 11) % 256 for y in range(48) for x in range(64 * 3))
         (root / "input.rgb").write_bytes(pixels)
@@ -47,6 +49,13 @@ def main():
             decoded = run("-i", "still.webp", "-pix_fmt", "rgb24", "-f", "rawvideo", "-")
             assert decoded == pixels, "WebP lossless pixels changed"
             tested.append("libwebp")
+        if "libwebp_anim" in encoders:
+            (root / "motion.rgb").write_bytes(pixels + bytes(255 - x for x in pixels))
+            run("-f", "rawvideo", "-pixel_format", "rgb24", "-video_size", "64x48", "-framerate", "5",
+                "-i", "motion.rgb", "-c:v", "libwebp_anim", "-lossless", "1", "animation.webp")
+            animation = (root / "animation.webp").read_bytes()
+            assert animation.startswith(b"RIFF") and b"ANIM" in animation and animation.count(b"ANMF") == 2
+            tested.append("libwebp_anim")
         for encoder, suffix, options in (
             ("libaom_av1", "ivf", ("-cpu-used", "8", "-crf", "45")),
             ("libx265", "hevc", ("-preset", "ultrafast", "-x265-params", "pools=1:frame-threads=1:log-level=error")),
