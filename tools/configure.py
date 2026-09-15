@@ -392,6 +392,8 @@ def generate(source, output, options, facts):
         lists = ObjectLists(source, flags, options["arch"])
         lists.read(source / f"lib{lib}/Makefile")
         lists.read(source / f'lib{lib}/{options["arch"]}/Makefile')
+        if facts.get("neon"):
+            lists.read(source / f"lib{lib}/neon/Makefile")
         all_inputs.update(lists.inputs)
         objects = lists.values("OBJS")
         objects += lists.values("SHLIBOBJS" if facts.get("shared") else "STLIBOBJS")
