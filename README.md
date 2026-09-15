@@ -178,6 +178,8 @@ python build.py --deps all --action test -- -DFFMPEG_GPL=ON
 python build.py --deps opus,vorbis,webp
 ```
 
+PowerShell 入口同样支持，例如 `./build.ps1 -Deps media -Action Test`。
+
 | 配方 | 固定版本 | 用途 |
 | --- | --- | --- |
 | `zlib` | 1.3.2 | 压缩、PNG 等内置编码器 |

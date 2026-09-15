@@ -54,7 +54,7 @@ def main():
         sources.fetch(args.branch or "master")
     extra = args.cmake_args[1:] if args.cmake_args[:1] == ["--"] else args.cmake_args
     if args.deps is not None:
-        extra = ["-DFFMPEG_DEPENDENCIES=" + args.deps.replace(",", ";"), *extra]
+        extra = ["-DFFMPEG_DEPENDENCY_PREFIX=", "-DFFMPEG_DEPENDENCIES=" + args.deps.replace(",", ";"), *extra]
     run("cmake", "--preset", args.preset, *extra)
     if args.action != "configure":
         parallel = ("--parallel", args.jobs) if args.jobs else ()

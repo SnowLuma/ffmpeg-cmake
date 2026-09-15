@@ -2,6 +2,8 @@
 /.cache/
 /ffmpeg/
 /install/
+/ffmpeg-*.tar.gz
+/prepared.tar.gz
 /.tools/
 /CMakeUserPresets.json
 __pycache__/
