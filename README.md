@@ -23,7 +23,7 @@ python tools/sources.py --branch master
 python tools/sources.py --branch release/8.0
 
 # 可选：固定提交，复现一次构建
-python tools/sources.py --branch master --revision 5b9a3ad71a4b54979e7afc3a1a4269763c4f41fc
+python tools/sources.py --branch master --revision 7797fb3ee3620ed4f466d6db3825e12243053055
 ```
 
 每次显式运行获取脚本都会拉取指定分支。`build.py` 只在源码缺失时自动获取；
